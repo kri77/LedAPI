@@ -10,7 +10,7 @@ from flask_swagger_ui import get_swaggerui_blueprint
 
 app = Flask(__name__)
 SWAGGER_URL = '/docs'  # URL to access docs
-API_URL = '/static/arduino_led_api.yaml'  # Location of your OAS YAML
+API_URL = '/static/arduino_led_api.yaml'  # URL for the Swagger API specification file
 
 swaggerui_blueprint = get_swaggerui_blueprint(
     SWAGGER_URL, 
@@ -19,7 +19,7 @@ swaggerui_blueprint = get_swaggerui_blueprint(
 )
 
 app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
-BAUD_RATE = 115200 
+BAUD_RATE = 115200  # Standard baud rate for Arduino communication
 arduino = None
 SERIAL_PORT = None
 
