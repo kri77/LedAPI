@@ -1,0 +1,69 @@
+
+openapi: 3.0.3
+info:
+  title: Arduino LED API
+  description: A REST API to control and monitor LED states on an Arduino Nano via USB.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+
+paths:
+  /setLedStatus:
+    post:
+      summary: Set the LED states on the Arduino
+      operationId: setLedStatus
+      requestBody:
+        description: 4-character binary pattern representing LED states (Red, Yellow, Green, Blue)
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pattern:
+                  type: string
+                  example: "1010"
+                  description: "A 4-character string (1 or 0) for each LED, e.g. '1100' turns on Red and Yellow."
+      responses:
+        '200':
+          description: LED pattern sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "Sent pattern '1010' to Arduino"
+        '400':
+          description: Invalid pattern format
+        '500':
+          description: Arduino not connected or communication error
+
+  /status:
+    get:
+      summary: Get the current status of all LEDs
+      operationId: getStatus
+      responses:
+        '200':
+          description: Successfully retrieved status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "connected"
+                  port:
+                    type: string
+                    example: "COM3"
+                  arduino_reply:
+                    type: string
+                    example: "redPin:12=1 yellowPin:11=0 greenPin:10=1 bluePin:9=0"
+        '404':
+          description: Arduino not found
+        '500':
+          description: Serial port error

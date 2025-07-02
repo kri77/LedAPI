@@ -34,14 +34,21 @@ pip install -r requirements.txt
 
 ---
 
-## Scripts
-
-- `LeadApi.py` – For querying the status via the `STATUS` command. Use this with `BlinkingLightsWithStatesReturned.ino` uploaded to the Arduino.
-- `LeadApiWithCommands.py` – Enables API commands to turn individual LEDs ON or OFF.
+## API Usage
+- See http://127.0.0.1:5000/docs/
+- Get status by sending a GET to /status e.g. http://127.0.0.1:5000/status
+- Set LED status by sending a POST to /setLedStatus e.g. http://127.0.0.1:5000/setLedStatus with parameters for the four leds as the body: {"pattern": "1011"}
 
 ---
 
-## Components
+## Python scripts
+
+- `LeadApi.py` – For querying the status via the `STATUS` command only. Use this with `BlinkingLightsWithStatesReturned.ino` uploaded to the Arduino.
+- `LeadApiWithCommands.py` – Enables API commands to turn individual LEDs ON or OFF. Also supports the STATUS command. Use this with `ControlLedsWithCommands.ino` uploaded to the Arduino
+
+---
+
+## Components for the circuit
 
 | Component        | Quantity | Arduino Pin | Purpose          |
 |------------------|----------|-------------|------------------|
@@ -53,3 +60,5 @@ pip install -r requirements.txt
 | Resistors (220Ω) | 4        | In series   | Current limiting |
 | Breadboard       | 1        | —           | Prototyping      |
 | Jumper wires     | 8        | —           | Connections      |
+
+See also [View Wiring Instructions](wiring.md)

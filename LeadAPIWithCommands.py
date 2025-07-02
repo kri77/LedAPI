@@ -6,9 +6,19 @@ import time
 import platform
 import os
 from flask import Flask, request, jsonify
+from flask_swagger_ui import get_swaggerui_blueprint
 
 app = Flask(__name__)
+SWAGGER_URL = '/docs'  # URL to access docs
+API_URL = '/static/arduino_led_api.yaml'  # Location of your OAS YAML
 
+swaggerui_blueprint = get_swaggerui_blueprint(
+    SWAGGER_URL, 
+    API_URL,
+    config={'app_name': "Arduino LED Controller API"}
+)
+
+app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 BAUD_RATE = 115200 
 arduino = None
 SERIAL_PORT = None
@@ -41,21 +51,21 @@ def connect_to_arduino():
         arduino = None
 
 
-@app.route('/light', methods=['POST'])
-def control_light():
+@app.route('/setLedStatus', methods=['POST'])
+def set_led_status():
     global arduino
     if arduino is None:
         return jsonify({"error": "Arduino not connected"}), 500
 
     data = request.get_json()
-    command = data.get("command", "").strip().upper()
+    led_command = data.get("pattern", "").strip()
 
-    if command not in ["ON", "OFF"]:
-        return jsonify({"error": "Invalid command"}), 400
+    if len(led_command) != 4 or not all(c in "01" for c in led_command):
+        return jsonify({"error": "Invalid pattern. Use a 4-character string of 0s and 1s like '1010'."}), 400
 
     try:
-        arduino.write(f"{command}\n".encode())
-        return jsonify({"status": f"Sent '{command}' to Arduino"}), 200
+        arduino.write(f"{led_command}\n".encode())
+        return jsonify({"status": f"Sent pattern '{led_command}' to Arduino"}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to send command: {str(e)}"}), 500
 
@@ -86,3 +96,16 @@ def main():
 
 if __name__ == '__main__':
     main() 
+
+# ================================
+# How to use : 
+#
+# Endpoint: POST /setLedStatus
+# Content-Type: application/json
+# Body:
+# {
+#     "pattern": "1010"
+# }
+#
+# This will turn ON the red and green LEDs, and OFF yellow and blue.
+# ================================
