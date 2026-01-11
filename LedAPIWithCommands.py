@@ -1,14 +1,16 @@
 import serial #pyserial is required for serial communication with Arduino
 import serial.tools.list_ports
-import subprocess
-import sys
 import time
-import platform
 import os
 from flask import Flask, request, jsonify
 from flask_swagger_ui import get_swaggerui_blueprint
+from flask_cors import CORS
+
+#To be able to control the LEDs be sure to upload ControlLedsWithCommands.ino to your Arduino
+#BlinkingLightsWithStatesReturned.ino only returns the LED statuses, but ignores the control commands
 
 app = Flask(__name__)
+CORS(app) #We need to enable CORS to allow requests 
 SWAGGER_URL = '/docs'  # URL to access docs
 API_URL = '/static/arduino_led_api.yaml'  # URL for the Swagger API specification file
 

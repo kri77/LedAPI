@@ -32,6 +32,7 @@ This was a first attempt to read status from the Arduino using a local API and t
 pip install -r requirements.txt
 ```
 
+
 ---
 
 ## API Usage
@@ -48,6 +49,10 @@ pip install -r requirements.txt
 
 ---
 
+## Arduino scripts
+Upload the `ControlLedsWithCommands.ino` script to your Arduino to set the LEDs, use `BlinkingLightsWithStatesReturned.ino` to only read state
+
+---
 ## Components for the circuit
 
 | Component        | Quantity | Arduino Pin | Purpose          |
