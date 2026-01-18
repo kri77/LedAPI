@@ -15,7 +15,25 @@ paths:
       summary: Set the LED states on the Arduino
       operationId: setLedStatus
       requestBody:
-        description: 4-character binary pattern representing LED states (Red, Yellow, Green, Blue)
+        description: |
+          LED control command supporting three formats:
+          Parse LED command in format: SSSS:OOOO:III or simple SSSS
+          **Format 1 - Simple (Backward compatible with previous version):**
+          - SSSS (4 digits: 0=off, 1=on)
+          - Example: "1010" - Red ON, Yellow OFF, Green ON, Blue OFF
+          
+          **Format 2 - Turn on, off or blink with Sequence and Interval:**
+          - SSSS:OOOO:III
+          - SSSS = LED states (0=off, 1=on steady, 2=blink)
+          - OOOO = Blink sequence order (0=no sequence, 1-4=position)
+          - III = Blink interval in milliseconds (100-5000, default 500)
+          
+          **Usage Examples:**
+          - "1010" - LEDs 1,3 steady on
+          - "2020:0000:1000" - LEDs 1,3 blink together at 1000ms
+          - "2222:1234:250" - All LEDs blink in sequence at 250ms
+          - "1210:0021:500" - LED1 steady, LED2 blinks, LED4 blinks (seq order 2,1)
+          - "STATUS" - Query current LED states (use GET /status instead)
         required: true
         content:
           application/json:
@@ -25,7 +43,7 @@ paths:
                 pattern:
                   type: string
                   example: "1010"
-                  description: "A 4-character string (1 or 0) for each LED, e.g. '1100' turns on Red and Yellow."
+                  description: "LED control command: simple '1010' or extended 'SSSS:OOOO:III' format"
       responses:
         '200':
           description: LED pattern sent successfully
@@ -36,9 +54,22 @@ paths:
                 properties:
                   status:
                     type: string
-                    example: "Sent pattern '1010' to Arduino"
+                    example: "Sent simple pattern '1010' to Arduino"
+                  command:
+                    type: string
+                    example: "1010"
+                  details:
+                    type: object
+                    description: "For extended format commands only"
+                    properties:
+                      states:
+                        type: string
+                      sequence_order:
+                        type: string
+                      interval_ms:
+                        type: integer
         '400':
-          description: Invalid pattern format
+          description: Invalid pattern format or invalid command
         '500':
           description: Arduino not connected or communication error
 

@@ -2,7 +2,7 @@ import serial #pyserial is required for serial communication with Arduino
 import serial.tools.list_ports
 import time
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify #We use Flask to create a simple REST API
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_cors import CORS
 
@@ -53,14 +53,66 @@ def connect_to_arduino():
         print(f"Failed to open serial port {SERIAL_PORT}: {e}")
         arduino = None
 
-# Print LED pattern in terminal
-def print_led_pattern(pattern):
-    """Print LED status as colored rectangles in the terminal"""
-    colors = {
-        '0': '\033[40m  \033[0m',  # Black background (OFF)
-        '1': '\033[41m  \033[0m'   # Red background (ON) - will be customized per LED
-    }
+# Parse and validate LED command format
+def parse_led_command(command_str):
+    """
+    Parse LED command in format: SSSS:OOOO:III or simple SSSS
     
+    SSSS = 4-digit LED state (0=off, 1=on steady, 2=blink)
+    OOOO = 4-digit blink sequence order (0=no sequence, 1-4=order position)
+    III  = Blink interval in milliseconds (optional, default 500ms)
+    
+    Returns: dict with command details or None if invalid
+    """
+    command_str = command_str.strip().upper()
+    
+    # Handle STATUS command
+    if command_str == "STATUS":
+        return {"type": "status"}
+    
+    # Check for extended format (SSSS:OOOO:III or SSSS:OOOO)
+    if ':' in command_str:
+        parts = command_str.split(':')
+        
+        if len(parts) < 2 or len(parts) > 3:
+            return None
+        
+        states = parts[0].strip()
+        order = parts[1].strip()
+        interval = int(parts[2].strip()) if len(parts) == 3 else 500
+        
+        # Validate states (0, 1, or 2)
+        if len(states) != 4 or not all(c in "012" for c in states):
+            return None
+        
+        # Validate order (0-4 for each position)
+        if len(order) != 4 or not all(c in "01234" for c in order):
+            return None
+        
+        # Validate interval 100 to 5000 ms
+        if interval < 100 or interval > 5000:
+            return None
+        
+        return {
+            "type": "extended",
+            "states": states,
+            "order": order,
+            "interval": interval
+        }
+    
+    # Backward compatibility: simple 4-digit command (0s and 1s only)
+    elif len(command_str) == 4 and all(c in "01" for c in command_str):
+        return {
+            "type": "simple",
+            "states": command_str
+        }
+    
+    return None
+
+
+# Print LED pattern in terminal
+def print_led_pattern(pattern, state_type=None):
+    """Print LED status as colored rectangles in the terminal"""
     led_names = ['RED', 'YELLOW', 'GREEN', 'BLUE']
     led_colors = [
         '\033[41m  \033[0m',  # Red
@@ -69,31 +121,92 @@ def print_led_pattern(pattern):
         '\033[44m  \033[0m'   # Blue
     ]
     
+    state_labels = {
+        '0': 'OFF',
+        '1': 'ON (Steady)',
+        '2': 'BLINK'
+    }
+    
     print("\nLED Status:")
     for i, (bit, name, color) in enumerate(zip(pattern, led_names, led_colors)):
-        if bit == '1':
-            print(f"{name}: {color} ON")
+        if state_type:
+            label = state_labels.get(bit, 'UNKNOWN')
         else:
-            print(f"{name}: \033[40m  \033[0m OFF")
+            label = 'ON' if bit == '1' else 'OFF'
+        
+        if bit == '0':
+            print(f"{name}: \033[40m  \033[0m {label}")
+        else:
+            print(f"{name}: {color} {label}")
     print()
 
-# Endpoint to set LED status, use the correct payload pattern like "1010"
+# Endpoint to set LED status, supports multiple formats
 @app.route('/setLedStatus', methods=['POST'])
 def set_led_status():
+    """
+    Set LED status with support for multiple command formats:
+    - Simple: "1010" (backward compatible)
+    - Extended: "2020:0000:1000" (state:sequence:interval)
+    - Extended: "2222:1234:250" (state:sequence with custom interval)
+    """
     global arduino
     if arduino is None:
         return jsonify({"error": "Arduino not connected"}), 500
 
     data = request.get_json()
-    led_command = data.get("pattern", "").strip()
+    command_input = data.get("pattern", "").strip()
 
-    if len(led_command) != 4 or not all(c in "01" for c in led_command):
-        return jsonify({"error": "Invalid pattern. Use a 4-character string of 0s and 1s like '1010'."}), 400
+    # Parse the command
+    parsed = parse_led_command(command_input)
+    
+    if parsed is None:
+        return jsonify({
+            "error": "Invalid command format. Use one of:\n"
+                     "- Simple: '1010' (backward compatible)\n"
+                     "- Extended: 'SSSS:OOOO:III' (state:sequence:interval)\n"
+                     "- STATUS (query LED states)"
+        }), 400
 
     try:
-        print_led_pattern(led_command)
-        arduino.write(f"{led_command}\n".encode())
-        return jsonify({"status": f"Sent pattern '{led_command}' to Arduino"}), 200
+        if parsed["type"] == "status":
+            # Status query handled separately
+            return jsonify({"message": "Use GET /status endpoint to query LED states"}), 400
+        
+        # For simple format, send as-is (backward compatible)
+        if parsed["type"] == "simple":
+            print_led_pattern(parsed["states"])
+            arduino.write(f"{parsed['states']}\n".encode())
+            return jsonify({
+                "status": f"Sent simple pattern '{parsed['states']}' to Arduino",
+                "command": parsed['states']
+            }), 200
+        
+        # For extended format, construct command with all parameters
+        if parsed["type"] == "extended":
+            states = parsed["states"]
+            order = parsed["order"]
+            interval = parsed["interval"]
+            
+            # Print enhanced information
+            print_led_pattern(states, state_type="extended")
+            print(f"Sequence Order: {order}")
+            print(f"Blink Interval: {interval}ms")
+            
+            # Send command in extended format to Arduino
+            # Format: SSSS:OOOO:III
+            command = f"{states}:{order}:{interval}\n"
+            arduino.write(command.encode())
+            
+            return jsonify({
+                "status": "Sent extended command to Arduino",
+                "command": command.strip(),
+                "details": {
+                    "states": states,
+                    "sequence_order": order,
+                    "interval_ms": interval
+                }
+            }), 200
+    
     except Exception as e:
         return jsonify({"error": f"Failed to send command: {str(e)}"}), 500
 
@@ -126,14 +239,30 @@ if __name__ == '__main__':
     main() 
 
 # ================================
-# Usage : 
+# How to use the API:
 #
 # Endpoint: POST /setLedStatus
 # Content-Type: application/json
-# Body:
-# {
-#     "pattern": "1010"
-# }
 #
-# This will turn ON the red and green LEDs, and the yellow and blue off
+# Provide a pattern using 0 1 and 2 to set led states off, on and blink.
+#
+# Supported command formats:
+# 1. Simple format (backward compatible):
+#    Body: { "pattern": "1010" }
+#    LEDs 1 and 3 ON steady
+#
+# 2. Use this to enable a blink sequence:
+#    Body: { "pattern": "2020:0000:1000" }
+#    LEDs 1 and 3 blink simultaneously at 1000ms
+#
+# 3. Use this to enable a blink sequence with order:
+#    Body: { "pattern": "2222:1234:250" }
+#    All LEDs blink in sequence at 250ms intervals
+#
+# 4. Use this to set different states and sequence order:
+#    Body: { "pattern": "1210:0021:500" }
+#    → LED 1 steady, LED 2 blinks, LED 4 blinks (sequence order 2 1)
+#
+# Status query:
+# Endpoint: GET /status
 # ================================
